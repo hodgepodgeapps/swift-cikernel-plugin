@@ -17,7 +17,7 @@ final="$2/${base}Data.swift"
 xcrun -sdk macosx metal -fcikernel "$1" -c -o "$compiled_macOS" "$cache" --target=air64-apple-macosx26.0 || exit $?
 xcrun -sdk macosx metallib -cikernel -o "$linked_macOS" "$compiled_macOS" || exit $?
 
-xcrun -sdk iphoneos metal -fcikernel "$1" -c -o "$compiled_iOS" "$cache" --target=air64-apple-ios13.0 || exit $?
+xcrun -sdk iphoneos metal -fcikernel "$1" -c -o "$compiled_iOS" "$cache" --target=air64-apple-ios26.0 || exit $?
 xcrun -sdk iphoneos metallib -cikernel -o "$linked_iOS" "$compiled_iOS" || exit $?
 
 xcrun -sdk appletvos metal -fcikernel "$1" -c -o "$compiled_tvOS" "$cache" --target=air64-apple-tvos13.0 || exit $?
