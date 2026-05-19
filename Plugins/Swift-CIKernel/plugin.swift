@@ -12,29 +12,72 @@ import PackagePlugin
 struct BuildCIKernel: BuildToolPlugin {
     func createBuildCommands(context: PluginContext, target: Target) async throws -> [Command] {
         guard let target = target as? SourceModuleTarget else { return [] }
+        let activeSDK = resolveActiveSDK()
 
-        // TODO: Find a better solution
-        let executable = Path(URL(fileURLWithPath: #file, isDirectory: false)
+        let executable = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("Scripts/buildci.sh", isDirectory: false)
-            .path)
+            .appending(path: "Scripts/buildci.sh")
 
-        return try FileManager.default.subpathsOfDirectory(atPath: target.directory.string).filter {
+        return try FileManager.default.subpathsOfDirectory(atPath: target.directoryURL.path()).filter {
             $0.hasSuffix("Filter.metal")
         }.map { source in
-            let source = target.directory.appending(source)
-            let output = context.pluginWorkDirectory.appending("\(source.stem)Data.swift")
+            let sourceURL = target.directoryURL.appending(path: source)
+            let stem = sourceURL.deletingPathExtension().lastPathComponent
+            let output = context.pluginWorkDirectoryURL.appending(path: "\(stem)Data.swift")
+            let compiledMacOS = context.pluginWorkDirectoryURL.appending(path: "\(stem)-macosx.air")
+            let linkedMacOS = context.pluginWorkDirectoryURL.appending(path: "\(stem)-macosx.metallib")
+            let compiledIOS = context.pluginWorkDirectoryURL.appending(path: "\(stem)-iphoneos.air")
+            let linkedIOS = context.pluginWorkDirectoryURL.appending(path: "\(stem)-iphoneos.metallib")
+            let compiledTVOS = context.pluginWorkDirectoryURL.appending(path: "\(stem)-tvos.air")
+            let linkedTVOS = context.pluginWorkDirectoryURL.appending(path: "\(stem)-tvos.metallib")
+            let compiledVisionOS = context.pluginWorkDirectoryURL.appending(path: "\(stem)-visionos.air")
+            let linkedVisionOS = context.pluginWorkDirectoryURL.appending(path: "\(stem)-visionos.metallib")
 
-            return .buildCommand(displayName: "Build CI Kernel \(source.stem)", executable: executable, arguments: [
-                source.string,
-                context.pluginWorkDirectory.string
-            ], environment: [:], inputFiles: [
-                source
+            return .buildCommand(displayName: "Build CI Kernel \(stem)", executable: executable, arguments: [
+                sourceURL.path(),
+                context.pluginWorkDirectoryURL.path()
+            ], environment: [
+                "SWIFT_CIKERNEL_ACTIVE_SDK": activeSDK
+            ], inputFiles: [
+                sourceURL
             ], outputFiles: [
-                output
+                output,
+                compiledMacOS,
+                linkedMacOS,
+                compiledIOS,
+                linkedIOS,
+                compiledTVOS,
+                linkedTVOS,
+                compiledVisionOS,
+                linkedVisionOS
             ])
         }
+    }
+
+    private func resolveActiveSDK() -> String {
+        let environment = ProcessInfo.processInfo.environment
+
+        if let sdkName = environment["SDK_NAME"] {
+            let normalized = normalizedSDK(from: sdkName)
+            if normalized != "all" { return normalized }
+        }
+
+        if let sdkRoot = environment["SDKROOT"] {
+            let normalized = normalizedSDK(from: sdkRoot)
+            if normalized != "all" { return normalized }
+        }
+
+        return "all"
+    }
+
+    private func normalizedSDK(from rawValue: String) -> String {
+        let value = rawValue.lowercased()
+        if value.contains("macosx") { return "macosx" }
+        if value.contains("iphoneos") { return "iphoneos" }
+        if value.contains("appletvos") { return "appletvos" }
+        if value.contains("xros") || value.contains("visionos") { return "xros" }
+        return "all"
     }
 }
