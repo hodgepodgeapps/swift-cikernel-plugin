@@ -19,21 +19,31 @@ struct BuildCIKernel: BuildToolPlugin {
             .deletingLastPathComponent()
             .appending(path: "Scripts/buildci.sh")
 
-        return try FileManager.default.subpathsOfDirectory(atPath: target.directoryURL.path()).filter {
-            $0.hasSuffix("Filter.metal")
-        }.map { source in
+        let targetDir = target.directoryURL.path()
+
+        let allMetalSources = try FileManager.default.subpathsOfDirectory(atPath: targetDir)
+            .filter { $0.hasSuffix(".metal") }
+        let entryFiles = allMetalSources.filter { $0.hasSuffix("Filter.metal") }
+        let sharedSources = allMetalSources
+            .filter { !$0.hasSuffix("Filter.metal") }
+        let sharedInputs = sharedSources.map { target.directoryURL.appending(path: $0) }
+
+        return entryFiles.map { source in
             let sourceURL = target.directoryURL.appending(path: source)
             let stem = sourceURL.deletingPathExtension().lastPathComponent
             let output = context.pluginWorkDirectoryURL.appending(path: "\(stem)Data.swift")
             let compiledMacOS = context.pluginWorkDirectoryURL.appending(path: "\(stem)-macosx.air")
             let linkedMacOS = context.pluginWorkDirectoryURL.appending(path: "\(stem)-macosx.metallib")
 
-            return .buildCommand(displayName: "Build CI Kernel \(stem)", executable: executable, arguments: [
+            let isSwiftUI = stem.hasSuffix("SwiftUIFilter")
+            let displayName = isSwiftUI ? "Build SwiftUI Shader \(stem)" : "Build CI Kernel \(stem)"
+
+            return .buildCommand(displayName: displayName, executable: executable, arguments: [
                 sourceURL.path(),
                 context.pluginWorkDirectoryURL.path()
             ], environment: [:], inputFiles: [
                 sourceURL
-            ], outputFiles: [
+            ] + sharedInputs, outputFiles: [
                 output,
                 compiledMacOS,
                 linkedMacOS
